@@ -56,7 +56,7 @@ class HipBot(muc.MUCClient):
         if not self.connected:
             log.msg('Not connected yet, ignoring msg: %s' % msg)
         room = muc.Room(self.room_jid, self.nick)
-        self.groupChat(self.room_jid, msg)
+        self.groupChat(self.room_jid, '@all ' + msg)
 
     def userJoinedRoom(self, room, user):
         """If a user joined a room, make sure they are in the last dict
