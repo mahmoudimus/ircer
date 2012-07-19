@@ -25,7 +25,7 @@ class HipBot(muc.MUCClient):
                 server=self.server,
                 nick=self.nick))
         self.last = {}
-        self.last_spoke = {}
+        self.last_spoke = None
         self.activity = None
 
     def _getLast(self, nick):
@@ -58,21 +58,18 @@ class HipBot(muc.MUCClient):
         """Returns True if we don't want to prefix the message with @all which
         will stop the bot from push notifying HipChat users
         """
-        if not user_nick:
-            return False
         right_now = datetime.datetime.now()
-        user_nick = user_nick.lower()
-        last = self.last_spoke.get(user_nick, right_now)
-        self.last_spoke[user_nick] = right_now
+        last_spoke = self.last_spoke
+        self.last_spoke = right_now
         threshold = right_now - datetime.timedelta(minutes=self.stfu_minutes)
-        if last > threshold:
+        if last_spoke and last_spoke > threshold:
             return True
         return False
 
-    def relay(self, msg, user_nick=None):
-        room = muc.Room(self.room_jid, self.nick)
+    def relay(self, msg, user_nick=None, quietly=False):
+        muc.Room(self.room_jid, self.nick)
 
-        if not self._stfu(user_nick):
+        if not quietly and not self._stfu(user_nick):
             msg = '@all ' + msg
 
         if not self.connected:

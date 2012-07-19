@@ -66,7 +66,8 @@ class LogBot(irc.IRCClient):
         """Called when an IRC user changes their nickname."""
         old_nick = prefix.split('!')[0]
         new_nick = params[0]
-        self.hipbot.relay("%s is now known as %s" % (old_nick, new_nick))
+        self.hipbot.relay("%s is now known as %s" % (old_nick, new_nick),
+                          quietly=True)
 
     # For fun, override the method that determines how a nickname is changed on
     # collisions. The default method appends an underscore.
