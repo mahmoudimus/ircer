@@ -12,18 +12,20 @@ from keepalive import KeepAlive
 
 class HipBot(muc.MUCClient):
 
-    def __init__(self, server, room, nick):
+    def __init__(self, server, room, nick, stfu_minutes):
         super(HipBot, self).__init__()
         self.connected = False
         self.server = server
         self.room = room
         self.nick = nick
+        self.stfu_minutes = stfu_minutes
         self.room_jid = jid.internJID(
             '{room}@{server}/{nick}'.format(
                 room=self.room,
                 server=self.server,
                 nick=self.nick))
         self.last = {}
+        self.last_spoke = None
         self.activity = None
 
     def _getLast(self, nick):
@@ -52,11 +54,27 @@ class HipBot(muc.MUCClient):
             # set config default
             config_result = yield self.configure(self.room_jid.userhost())
 
-    def relay(self, msg):
+    def _stfu(self, user_nick=None):
+        """Returns True if we don't want to prefix the message with @all which
+        will stop the bot from push notifying HipChat users
+        """
+        right_now = datetime.datetime.now()
+        last_spoke = self.last_spoke
+        self.last_spoke = right_now
+        threshold = right_now - datetime.timedelta(minutes=self.stfu_minutes)
+        if last_spoke and last_spoke > threshold:
+            return True
+        return False
+
+    def relay(self, msg, user_nick=None, quietly=False):
+        muc.Room(self.room_jid, self.nick)
+
+        if not quietly and not self._stfu(user_nick):
+            msg = '@all ' + msg
+
         if not self.connected:
             log.msg('Not connected yet, ignoring msg: %s' % msg)
-        room = muc.Room(self.room_jid, self.nick)
-        self.groupChat(self.room_jid, '@all ' + msg)
+        self.groupChat(self.room_jid, msg)
 
     def userJoinedRoom(self, room, user):
         """If a user joined a room, make sure they are in the last dict
@@ -98,7 +116,7 @@ class HipBot(muc.MUCClient):
             else:
                 self.groupChat(
                     self.room_jid,
-                    'Sorry %s, That person is unknown to me.' % (user.nick,))
+                    'Sorry %s, That person is unknown to me.' % (user_nick,))
 
     def _sendLast(self, room, user):
         """ Grab last information from user and room and send it to the room.
@@ -109,11 +127,11 @@ class HipBot(muc.MUCClient):
         if room.inRoster(user):
             message = ("""%s is in this room and said '%s' at %s.""" % (
                 user.nick, last_message, last_stamp
-                ))
+            ))
         else:
             message = ("""%s left this room at %s and last said '%s'.""" % (
                 user.nick, last_stamp, last_message
-                ))
+            ))
 
         self.groupChat(self.room_jid, message)
 
@@ -122,17 +140,17 @@ def make_client(config):
 
     keepalive = KeepAlive()
     keepalive.interval = config.getint('hipchat', 'keepalive.interval')
-
     xmppclient = XMPPClient(
         jid.internJID(config.get('hipchat', 'jabber_id')),
         config.get('hipchat', 'password')
-        )
+    )
     xmppclient.logTraffic = config.getboolean('hipchat', 'logtraffic')
 
     mucbot = HipBot(
         config.get('hipchat', 'server'),
         config.get('hipchat', 'channel'),
-        config.get('hipchat', 'botnick'))
+        config.get('hipchat', 'botnick'),
+        config.get('hipchat', 'stfu_minutes'))
     mucbot.setHandlerParent(xmppclient)
     keepalive.setHandlerParent(xmppclient)
 
