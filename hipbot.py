@@ -5,7 +5,6 @@ from twisted.python import log
 from twisted.words.protocols.jabber import jid
 from wokkel import muc
 from wokkel.client import XMPPClient
-from wokkel.xmppim import AvailabilityPresence
 
 from keepalive import KeepAlive
 
@@ -18,7 +17,7 @@ class HipBot(muc.MUCClient):
         self.server = server
         self.room = room
         self.nick = nick
-        self.stfu_minutes = stfu_minutes
+        self.stfu_minutes = int(stfu_minutes) if stfu_minutes else 0
         self.room_jid = jid.internJID(
             '{room}@{server}/{nick}'.format(
                 room=self.room,
@@ -85,10 +84,12 @@ class HipBot(muc.MUCClient):
         self._setLast(user)
 
     def receivedGroupChat(self, room, user, message):
-        # check if this message addresses the bot
-        cmd = None
         # value error means it was a one word body
         cmd = message.body
+
+        if not cmd:
+            return
+
         cmd = cmd.replace('!', '')
 
         method = getattr(self, 'cmd_' + cmd, None)
