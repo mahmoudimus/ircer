@@ -42,7 +42,7 @@ class LogBot(irc.IRCClient):
     def privmsg(self, user, channel, msg):
         """This will get called when the bot receives a message."""
         user = user.split('!', 1)[0]
-        self.hipbot.relay("<%s> %s" % (user, msg))
+        self.hipbot.relay("<%s> %s" % (user, msg), user_nick=user)
 
         # Check to see if they're sending me a private message
         if channel == self.nickname:
@@ -58,7 +58,7 @@ class LogBot(irc.IRCClient):
     def action(self, user, channel, msg):
         """This will get called when the bot sees someone do an action."""
         user = user.split('!', 1)[0]
-        self.hipbot.relay("* %s %s" % (user, msg))
+        self.hipbot.relay("* %s %s" % (user, msg), user_nick=user)
 
     # irc callbacks
 
@@ -66,7 +66,8 @@ class LogBot(irc.IRCClient):
         """Called when an IRC user changes their nickname."""
         old_nick = prefix.split('!')[0]
         new_nick = params[0]
-        self.hipbot.relay("%s is now known as %s" % (old_nick, new_nick))
+        self.hipbot.relay("%s is now known as %s" % (old_nick, new_nick),
+                          quietly=True)
 
     # For fun, override the method that determines how a nickname is changed on
     # collisions. The default method appends an underscore.

@@ -29,3 +29,5 @@ pip-log.txt
 # emacs
 .dir-locals.el
 .ropeproject
+.idea/
+twistd.log
