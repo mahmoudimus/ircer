@@ -5,7 +5,6 @@ from twisted.python import log
 from twisted.words.protocols.jabber import jid
 from wokkel import muc
 from wokkel.client import XMPPClient
-from wokkel.xmppim import AvailabilityPresence
 
 from keepalive import KeepAlive
 
@@ -18,7 +17,7 @@ class HipBot(muc.MUCClient):
         self.server = server
         self.room = room
         self.nick = nick
-        self.stfu_minutes = stfu_minutes
+        self.stfu_minutes = int(stfu_minutes) if stfu_minutes else 0
         self.room_jid = jid.internJID(
             '{room}@{server}/{nick}'.format(
                 room=self.room,
@@ -27,6 +26,10 @@ class HipBot(muc.MUCClient):
         self.last = {}
         self.last_spoke = None
         self.activity = None
+        self.ircer = None
+        #This flag helps in avoiding relaying relayed messages
+        #e.g. irc --> hipchat --> irc is an example of relaying a relayed message
+        self.relay_mode = False
 
     def _getLast(self, nick):
         return self.last.get(nick.lower())
@@ -42,6 +45,9 @@ class HipBot(muc.MUCClient):
         super(HipBot, self).connectionInitialized()
         self.join(self.room_jid, self.nick).addCallback(self.initRoom)
         self.connected = True
+
+    def setIrcer(self, ircer):
+        self.ircer = ircer
 
     @defer.inlineCallbacks
     def initRoom(self, room):
@@ -61,7 +67,7 @@ class HipBot(muc.MUCClient):
         right_now = datetime.datetime.now()
         last_spoke = self.last_spoke
         self.last_spoke = right_now
-        threshold = right_now - datetime.timedelta(minutes=self.stfu_minutes)
+        threshold = right_now - datetime.timedelta(minutes=int(self.stfu_minutes))
         if last_spoke and last_spoke > threshold:
             return True
         return False
@@ -75,6 +81,7 @@ class HipBot(muc.MUCClient):
         if not self.connected:
             log.msg('Not connected yet, ignoring msg: %s' % msg)
         self.groupChat(self.room_jid, msg)
+        self.relay_mode = True
 
     def userJoinedRoom(self, room, user):
         """If a user joined a room, make sure they are in the last dict
@@ -85,10 +92,12 @@ class HipBot(muc.MUCClient):
         self._setLast(user)
 
     def receivedGroupChat(self, room, user, message):
-        # check if this message addresses the bot
-        cmd = None
         # value error means it was a one word body
         cmd = message.body
+
+        if not cmd:
+            return
+
         cmd = cmd.replace('!', '')
 
         method = getattr(self, 'cmd_' + cmd, None)
@@ -99,6 +108,9 @@ class HipBot(muc.MUCClient):
         # log last message
         user.last_message = message.body
         self._setLast(user)
+        if not self.relay_mode:
+            self.ircer.relay(user.nick.encode('ascii', 'ignore'), message.body.encode('ascii', 'ignore'))
+        self.relay_mode = False
 
     def cmd_hello(self, room, user_nick):
         self.groupChat(self.room_jid, 'Hello there: %s' % user_nick)

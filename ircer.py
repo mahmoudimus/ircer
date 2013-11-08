@@ -20,6 +20,8 @@ class LogBot(irc.IRCClient):
         # ugh.
         for handler in self.factory.xmpp_client.handlers:
             if isinstance(handler, HipBot):
+                #send reference to ircer to hipbot
+                handler.setIrcer(self)
                 return handler
 
     def connectionMade(self):
@@ -77,6 +79,8 @@ class LogBot(irc.IRCClient):
         effort to create an unused related name for subsequent registration.
         """
         return nickname + '^'
+    def relay(self, user, msg):
+        self.msg(self.factory.channel.encode('ascii','ignore'), "[%s]: %s" % (user, msg)) 
 
 
 class LogBotFactory(protocol.ClientFactory):
